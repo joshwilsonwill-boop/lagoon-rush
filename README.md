@@ -18,7 +18,15 @@ Move with the arrow keys or WASD, or hold the mouse to steer toward it. Space or
 
 ## Screenshots
 
-The four screenshots in screenshots/ are real renders of the game's own code: the title screen, mid-game play with the HUD, the game-over screen, and the Eko Marina win screen, staged with `?shot=start|play|end|win&seed=1`.
+Real renders of the game's own code, staged with `?shot=start|play|end|win&seed=1`:
+
+![Lagoon Rush title screen — steer your boat across the Lagos lagoon at sunset](screenshots/1-start.png)
+
+![Mid-game play — dodge canoes, logs and buoys, catch cowrie shells, HUD shows score, level and lives](screenshots/2-play.png)
+
+![Game over — the lagoon wins](screenshots/3-end.png)
+
+![Win screen — you reached Eko Marina with 30 cowries](screenshots/4-win.png)
 
 ---
 
