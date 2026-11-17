@@ -507,7 +507,10 @@ export function createWorld(random) {
       }
     }
     if (anySeen) state.losTimer = 0;
-    else state.losTimer += dt;
+    // No patrol active means nobody is watching: the boat is not "hiding"
+    // from anyone, so do not let the hidden decay swallow crimes committed
+    // before any patrol exists (it used to kill no-wake heat after ~3.5s).
+    else if (activePatrols > 0) state.losTimer += dt;
     if (!state.patrolsOff) {
       if (state.losTimer > WANTED.hiddenSeconds) state.wantedHeat = Math.max(0, state.wantedHeat - WANTED.decayHidden * dt);
       else state.wantedHeat = Math.max(0, state.wantedHeat - WANTED.decayVisible * dt);
