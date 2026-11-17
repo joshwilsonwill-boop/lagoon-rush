@@ -4,7 +4,9 @@
 [![rank](https://make.fun/badge/best-game-01/joshwilsonwill-boop/lagoon-rush/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 [![reward](https://make.fun/badge/best-game-01/joshwilsonwill-boop/lagoon-rush/reward.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 
-Lagoon Rush: steer a wooden boat across the Lagos lagoon at sunset. Dodge drifting logs, fishermen's canoes, oil drums and buoys, catch cowrie shells to reach Eko Marina, and grab golden catfish for bonus points. Three lives, rising speed and spawn rates as the levels climb, a win at 30 cowries, and a full restart.
+Lagoon Rush: steer a wooden boat across the Lagos lagoon at sunset. GTA-style handling — the boat has real momentum, acceleration and drift, so fast turns slide wide and have to be braked. Dodge drifting logs, fishermen's canoes, oil drums and buoys, catch cowrie shells to reach Eko Marina, and grab golden catfish for bonus points. Three lives, rising speed and spawn rates as the levels climb, a win at 30 cowries, and a full restart.
+
+Cause chaos and the heat rises: hit a canoe, ram a buoy, or speed through a marked no-wake zone and wanted stars climb. Marine patrol boats launch, chase you down and ram you. Lose them by breaking their line of sight — slip behind the Third Mainland Bridge pillars or into the mangroves — and the heat cools off. Take jobs too: press E to accept a delivery or a crate run, beat the timer, and get paid in points and cowries.
 
 ## Run it
 
@@ -14,7 +16,7 @@ node serve.ts
 
 Then open http://localhost:8080 in a desktop browser. No build step, no network requests: every file the game loads lives under game/.
 
-Move with the arrow keys or WASD, or hold the mouse to steer toward it. Space or click starts and restarts. P pauses, M mutes the synthesised WebAudio sounds.
+Move with the arrow keys or WASD, or hold the mouse to steer toward it. Space or click starts and restarts. E takes a job when one is offered. P pauses, M mutes the synthesised WebAudio sounds.
 
 ## Screenshots
 

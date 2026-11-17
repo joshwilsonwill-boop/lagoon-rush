@@ -8,8 +8,8 @@
 // window.__shotReady for a screenshot.
 import { BEST_KEY, LIVES, STEP } from './config.js';
 import { createRandom } from './random.js';
-import { createWorld, EVENT_FISH, EVENT_HEART, EVENT_HIT, EVENT_OVER, EVENT_PICKUP, EVENT_WIN } from './world.js';
-import { ACTION_CONFIRM, ACTION_MUTE, ACTION_PAUSE, createInput } from './input.js';
+import { createWorld, EVENT_FISH, EVENT_HEART, EVENT_HIT, EVENT_MISSION, EVENT_OVER, EVENT_PICKUP, EVENT_SIREN, EVENT_WIN } from './world.js';
+import { ACTION_CONFIRM, ACTION_MISSION, ACTION_MUTE, ACTION_PAUSE, createInput } from './input.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 import { stageShot } from './shots.js';
@@ -25,6 +25,9 @@ const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() 
 const canvas = document.getElementById('game');
 const status = document.getElementById('status');
 const world = createWorld(createRandom(seed));
+// Read-only handle for automated checks (screenshots, smoke tests): the live
+// state, nothing secret. The game itself never reads it.
+window.__lagoon = world.state;
 const renderer = createRenderer(canvas);
 const audio = createAudio();
 
@@ -97,6 +100,14 @@ function runGame() {
       const muted = audio.toggleMute();
       announce(muted ? 'Sound off.' : 'Sound on.');
     }
+    if (actions & ACTION_MISSION && screen === SCREEN_PLAY) {
+      const wasOffered = world.state.mission.offered;
+      world.acceptMission();
+      if (wasOffered && world.state.mission.active) {
+        audio.mission();
+        announce(world.state.mission.type === 'delivery' ? 'Job accepted. Deliver the cargo to Eko Marina.' : 'Job accepted. Collect the crates.');
+      }
+    }
     if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER || screen === SCREEN_WIN)) startGame();
     else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
       screen = SCREEN_PAUSED;
@@ -117,6 +128,14 @@ function runGame() {
     if (events & EVENT_PICKUP) audio.pickup();
     if (events & EVENT_FISH) audio.fish();
     if (events & EVENT_HEART) audio.heart();
+    if (events & EVENT_MISSION) {
+      audio.mission();
+      announce(`Job done. Score ${world.state.score}.`);
+    }
+    if (events & EVENT_SIREN) {
+      audio.siren();
+      announce('Marine patrol on your tail.');
+    }
     if (events & EVENT_HIT) {
       audio.splash();
       announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);

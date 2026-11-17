@@ -4,8 +4,8 @@
 // the boat and its wake, then the HUD and the screen's panel. Text that holds a
 // number is rebuilt only when the number changes, so a frame allocates nothing.
 
-import { FIELD, FONT, LIVES, PALETTE, WIN_SHELLS } from './config.js';
-import { KIND_BUOY, KIND_CANOE, KIND_DRUM, KIND_FISH, KIND_HEART, KIND_LOG, KIND_SHELL } from './world.js';
+import { DOCK_A, DOCK_B, FIELD, FONT, LIVES, MANGROVES, NO_WAKE, PALETTE, PILLARS, WIN_SHELLS } from './config.js';
+import { KIND_BUOY, KIND_CANOE, KIND_CRATE, KIND_DRUM, KIND_FISH, KIND_HEART, KIND_LOG, KIND_SHELL } from './world.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -172,6 +172,108 @@ export function createRenderer(canvas) {
     }
   }
 
+  function drawZones(state) {
+    // No-wake zones: dashed amber frames with a label.
+    context.strokeStyle = PALETTE.zone;
+    context.lineWidth = 2;
+    context.setLineDash([10, 8]);
+    for (let index = 0; index < NO_WAKE.length; index += 1) {
+      const zone = NO_WAKE[index];
+      // The fill must be set per zone: text() below resets it to solid.
+      context.fillStyle = 'rgba(255,176,32,0.07)';
+      context.fillRect(zone.x, zone.y, zone.w, zone.h);
+      context.strokeRect(zone.x, zone.y, zone.w, zone.h);
+      text('NO WAKE', zone.x + zone.w / 2, zone.y + 16, 13, PALETTE.zone, 'center', 'top');
+    }
+    context.setLineDash([]);
+    // Docks: wooden platforms at the water's edge.
+    const docks = [DOCK_A, DOCK_B];
+    for (let index = 0; index < docks.length; index += 1) {
+      const dock = docks[index];
+      context.fillStyle = PALETTE.dock;
+      context.fillRect(dock.x, dock.y, dock.w, dock.h);
+      context.fillStyle = '#8a5a2b';
+      for (let px = dock.x + 6; px < dock.x + dock.w; px += 18) context.fillRect(px, dock.y + 4, 10, 4);
+    }
+    // Mission target ring: a pulsing gold circle on the active target.
+    const mission = state.mission;
+    if (mission.active) {
+      const radius = 46 + Math.sin(state.wavePhase * 5) * 5;
+      context.strokeStyle = PALETTE.ring;
+      context.lineWidth = 4;
+      context.beginPath();
+      context.arc(mission.tx, mission.ty, radius, 0, Math.PI * 2);
+      context.stroke();
+      context.fillStyle = PALETTE.ring;
+      context.beginPath();
+      context.arc(mission.tx, mission.ty, 6, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  function drawPillars() {
+    // Bridge pillars: dark columns the boat can slip behind. They sit behind
+    // the boat so the player never loses sight of their own hull.
+    for (let index = 0; index < PILLARS.length; index += 1) {
+      const pillar = PILLARS[index];
+      context.fillStyle = '#1c1038';
+      context.fillRect(pillar.x, pillar.y, pillar.w, pillar.h);
+      context.fillStyle = 'rgba(255,215,106,0.5)';
+      context.fillRect(pillar.x, pillar.y, pillar.w, 6);
+    }
+  }
+
+  function drawMangroves() {
+    // Mangrove thickets: dark green cover at the water's edge. A boat inside
+    // one is hidden from patrols — and from view, which is the point.
+    for (let index = 0; index < MANGROVES.length; index += 1) {
+      const grove = MANGROVES[index];
+      context.fillStyle = PALETTE.mangrove;
+      context.beginPath();
+      context.ellipse(grove.x + grove.w / 2, grove.y + grove.h / 2, grove.w / 2, grove.h / 2, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = PALETTE.mangroveTop;
+      for (let blob = 0; blob < 5; blob += 1) {
+        context.beginPath();
+        context.arc(grove.x + 14 + blob * 20, grove.y + 16 + (blob % 2) * 26, 12, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+  }
+
+  function drawPatrols(state) {
+    for (let index = 0; index < state.patrols.length; index += 1) {
+      const patrol = state.patrols[index];
+      if (!patrol.active) continue;
+      const flashing = Math.floor(state.wavePhase * 4) % 2 === 0;
+      context.save();
+      context.translate(patrol.x + patrol.width / 2, patrol.y + patrol.height / 2);
+      context.fillStyle = 'rgba(232,251,255,0.4)';
+      context.beginPath();
+      context.ellipse(0, patrol.height / 2, 56, 6, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = PALETTE.patrol;
+      context.beginPath();
+      context.moveTo(-patrol.width / 2 + 4, -8);
+      context.lineTo(patrol.width / 2 - 4, -8);
+      context.lineTo(patrol.width / 2 - 18, patrol.height / 2 - 4);
+      context.lineTo(-patrol.width / 2 + 18, patrol.height / 2 - 4);
+      context.closePath();
+      context.fill();
+      context.fillStyle = PALETTE.patrolStripe;
+      context.fillRect(-patrol.width / 2 + 8, -2, patrol.width - 16, 5);
+      context.fillStyle = '#dfe9f5';
+      context.fillRect(-16, -20, 32, 14);
+      // Flashing beacon: red, then blue.
+      context.fillStyle = flashing ? PALETTE.beaconRed : PALETTE.beaconBlue;
+      context.beginPath();
+      context.arc(0, -24, 7, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+      text('POLICE', patrol.x + patrol.width / 2, patrol.y - 14, 13, '#e8f4ff', 'center', 'alphabetic');
+    }
+  }
+
   function drawHeartShape(x, y, size, color) {
     context.fillStyle = color;
     context.beginPath();
@@ -265,6 +367,24 @@ export function createRenderer(canvas) {
       context.beginPath();
       context.arc(item.x + item.width - 10, y + item.height / 2 + wiggle - 2, 2.5, 0, Math.PI * 2);
       context.fill();
+    } else if (item.kind === KIND_CRATE) {
+      context.fillStyle = PALETTE.crate;
+      context.fillRect(item.x, y, item.width, item.height);
+      context.strokeStyle = PALETTE.crateDark;
+      context.lineWidth = 3;
+      context.strokeRect(item.x + 2, y + 2, item.width - 4, item.height - 4);
+      context.beginPath();
+      context.moveTo(item.x, y);
+      context.lineTo(item.x + item.width, y + item.height);
+      context.moveTo(item.x + item.width, y);
+      context.lineTo(item.x, y + item.height);
+      context.stroke();
+      // Glow ring so a job crate reads at a glance.
+      context.strokeStyle = 'rgba(255,215,106,0.8)';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(item.x + item.width / 2, y + item.height / 2, 24 + Math.sin(state.wavePhase * 4) * 2, 0, Math.PI * 2);
+      context.stroke();
     } else if (item.kind === KIND_HEART) {
       drawHeartShape(item.x + item.width / 2, y + item.height / 2 + 4, item.width, PALETTE.heart);
     }
@@ -272,9 +392,11 @@ export function createRenderer(canvas) {
 
   function drawBoat(state) {
     const boat = state.boat;
-    // Blink while invulnerable after a hit: hidden on every other tenth of a second.
-    if (boat.invulnerable !== 0 && Math.floor(boat.invulnerable * 10) % 2 === 0) return;
+    // Blink while invulnerable after a hit: faint, never gone — the player
+    // must always see their own boat.
+    const blink = boat.invulnerable !== 0 && Math.floor(boat.invulnerable * 10) % 2 === 0 ? 0.35 : 1;
     context.save();
+    context.globalAlpha = blink;
     context.translate(boat.x + boat.width / 2, boat.y + boat.height / 2);
     context.rotate(boat.tilt);
     context.translate(-boat.width / 2, -boat.height / 2);
@@ -320,6 +442,14 @@ export function createRenderer(canvas) {
     context.arc(boat.width - 26, 2, 8, 0, Math.PI * 2);
     context.fill();
     context.fillRect(boat.width - 34, 6, 16, 10);
+    // Cargo on board during a delivery's second leg.
+    if (state.mission.active && state.mission.type === 'delivery' && state.mission.phase === 1) {
+      context.fillStyle = PALETTE.crate;
+      context.fillRect(boat.width / 2 - 14, boat.height - 26, 28, 16);
+      context.strokeStyle = PALETTE.crateDark;
+      context.lineWidth = 2;
+      context.strokeRect(boat.width / 2 - 14, boat.height - 26, 28, 16);
+    }
     context.restore();
   }
 
@@ -336,7 +466,17 @@ export function createRenderer(canvas) {
     context.globalAlpha = 1;
   }
 
-  function drawHud(state, best) {
+  function drawStrip(line) {
+    const width = 640;
+    context.fillStyle = 'rgba(22,15,46,0.75)';
+    context.fillRect((FIELD.width - width) / 2, 68, width, 30);
+    context.strokeStyle = PALETTE.accent;
+    context.lineWidth = 2;
+    context.strokeRect((FIELD.width - width) / 2, 68, width, 30);
+    text(line, FIELD.width / 2, 76, 17, PALETTE.text, 'center', 'top');
+  }
+
+  function drawHud(state, best, screen) {
     context.textBaseline = 'top';
     // Top bar: score left, Marina progress centre, lives right.
     context.fillStyle = 'rgba(22,15,46,0.55)';
@@ -344,7 +484,7 @@ export function createRenderer(canvas) {
     const seconds = Math.floor(state.elapsed);
     const clock = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
     text(scoreLabel(state.score), 24, 12, 28, PALETTE.text, 'left', 'top');
-    text(levelLabel(state.level) + '  ·  ' + clock, 24, 42, 16, PALETTE.muted, 'left', 'top');
+    text(levelLabel(state.level) + '  ·  ' + clock + '  ·  ' + Math.round(state.speed) + ' kn', 24, 42, 16, PALETTE.muted, 'left', 'top');
     const barX = 430;
     const barWidth = 420;
     text('EKO MARINA', barX + barWidth / 2, 8, 15, PALETTE.accent, 'center', 'top');
@@ -353,10 +493,36 @@ export function createRenderer(canvas) {
     context.fillStyle = PALETTE.accent;
     context.fillRect(barX, 28, barWidth * Math.min(1, state.cowries / WIN_SHELLS), 14);
     text(state.cowries + ' / ' + WIN_SHELLS + ' cowries', barX + barWidth / 2, 46, 14, PALETTE.text, 'center', 'top');
+    // Wanted stars, between the Marina bar and the lives.
+    const starLabel = '★'.repeat(state.wanted) + '☆'.repeat(5 - state.wanted);
+    text(starLabel, 880, 8, 22, state.wanted > 0 ? '#ffb020' : '#5a4a72', 'left', 'top');
+    text('WANTED', 880, 40, 12, PALETTE.muted, 'left', 'top');
     const firstHeart = FIELD.width - 24 - LIVES * (HEART_SIZE + HEART_GAP) + HEART_GAP;
     text('Lives', firstHeart - 14, 12, 28, PALETTE.text, 'right', 'top');
     for (let life = 0; life < LIVES; life += 1) {
       drawHeartShape(firstHeart + life * (HEART_SIZE + HEART_GAP) + HEART_SIZE / 2, 52, HEART_SIZE, life < state.lives ? PALETTE.heart : '#3a2a4d');
+    }
+    if (screen === SCREEN_PLAY) {
+      const mission = state.mission;
+      if (mission.active) {
+        const left = Math.max(0, Math.ceil(mission.timer));
+        const mclock = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+        const objective = mission.type === 'delivery'
+          ? (mission.phase === 0 ? 'JOB: Pick up the cargo at the west dock' : 'JOB: Deliver the cargo to Eko Marina')
+          : 'JOB: Collect the crates  ' + mission.got + '/' + mission.need;
+        drawStrip(objective + '    ' + mclock);
+      } else if (mission.offered) {
+        const job = mission.type === 'delivery' ? 'Deliver cargo to Eko Marina  (+150)' : 'Collect 5 crates  (+120)';
+        drawStrip('NEW JOB — ' + job + '   — press E');
+      }
+      if (state.speeding && Math.floor(state.wavePhase * 6) % 2 === 0) {
+        text('SLOW DOWN — NO WAKE ZONE', FIELD.width / 2, 104, 20, PALETTE.zone, 'center', 'top');
+      }
+    }
+    if (state.bannerTimer > 0) {
+      context.globalAlpha = Math.min(1, state.bannerTimer);
+      text(state.banner, FIELD.width / 2, 180, 40, PALETTE.accent, 'center', 'top');
+      context.globalAlpha = 1;
     }
   }
 
@@ -377,7 +543,7 @@ export function createRenderer(canvas) {
     text(prompt, FIELD.width / 2, y + height - 38, 24, PALETTE.text, 'center');
   }
 
-  const TITLE_LINES = ['Steer your boat across the Lagos lagoon at sunset.', 'Dodge logs, canoes, drums and buoys.', 'Catch 30 cowrie shells to reach Eko Marina.', 'Golden catfish are worth 25. Three lives.', 'Move with arrows or WASD, or hold the mouse.', 'P pauses, M mutes.', ''];
+  const TITLE_LINES = ['GTA-style lagoon: momentum, drift, wanted stars.', 'Marine patrols chase you when the heat is on.', 'Take jobs: deliveries and crate runs pay big.', 'Catch 30 cowrie shells to reach Eko Marina.', 'Move with arrows or WASD, or hold the mouse.', 'E takes a job. P pauses, M mutes.', ''];
   const PAUSED_LINES = ['The lagoon will wait for you.'];
   const OVER_LINES = ['', ''];
   const WIN_LINES = ['You reached Eko Marina with the evening catch!', '', ''];
@@ -390,18 +556,22 @@ export function createRenderer(canvas) {
     context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
     drawSky(state);
     drawWater(state);
+    drawZones(state);
+    drawPillars();
     for (let index = 0; index < state.items.length; index += 1) {
       const item = state.items[index];
       if (item.active) drawItem(item, state);
     }
     drawBoat(state);
+    drawPatrols(state);
+    drawMangroves();
     drawParticles(state);
     if (screen === SCREEN_TITLE) {
       TITLE_LINES[6] = bestLabel(best);
       drawPanel('LAGOON RUSH', TITLE_LINES, 'Press Space or click to set sail');
       return;
     }
-    drawHud(state, best);
+    drawHud(state, best, screen);
     if (screen === SCREEN_PAUSED) drawPanel('Paused', PAUSED_LINES, 'Press P to keep sailing');
     else if (screen === SCREEN_OVER) {
       OVER_LINES[0] = finalLabel(state.score) + '  ·  ' + state.cowries + ' cowries';

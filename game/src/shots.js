@@ -4,7 +4,7 @@
 // drift, chase the nearest cowrie when that is safe), so the frame is what a
 // short game really looks like and the same seed always gives the same frame.
 
-import { BOAT, FIELD, STEP } from './config.js';
+import { BOAT, FIELD, NO_WAKE, PHYSICS, STEP, WANTED } from './config.js';
 import { EVENT_OVER, EVENT_WIN, KIND_BUOY, KIND_CANOE, KIND_DRUM, KIND_LOG } from './world.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 
@@ -20,7 +20,7 @@ const WIN_LIMIT_SECONDS = 600;
  */
 const HORIZON_PLAY = 0.8;
 const HORIZON_END = 0.25;
-const HORIZON_WIN = 1.1;
+const HORIZON_WIN = 1.4;
 const SAMPLE = 1 / 30;
 /** Extra room, each side, it keeps between the boat and an obstacle. */
 const MARGIN = 14;
@@ -29,17 +29,83 @@ function isObstacle(kind) {
   return kind === KIND_LOG || kind === KIND_CANOE || kind === KIND_DRUM || kind === KIND_BUOY;
 }
 
-/** Seconds until moving with `move` runs the boat into an obstacle; Infinity when it never does. */
+/** Where the boat would be after `t` seconds holding `move`, using the same
+ * acceleration, drift and drag as world.js: the pilot must plan for a boat
+ * that takes time to get moving and slides through turns. */
+function predictPosition(state, move, t) {
+  let x = state.boat.x;
+  let y = state.boat.y;
+  let vx = state.boat.vx;
+  let vy = state.boat.vy;
+  const steps = Math.max(1, Math.round(t / STEP));
+  const dt = t / steps;
+  for (let s = 0; s < steps; s += 1) {
+    if (move.x !== 0 || move.y !== 0) {
+      const length = Math.hypot(move.x, move.y);
+      let ax = (move.x / length) * PHYSICS.accel;
+      let ay = (move.y / length) * PHYSICS.accel;
+      const speedNow = Math.hypot(vx, vy);
+      if (speedNow > 1) {
+        const fx = vx / speedNow;
+        const fy = vy / speedNow;
+        const along = ax * fx + ay * fy;
+        let sx = ax - along * fx;
+        let sy = ay - along * fy;
+        const keep = 1 - PHYSICS.turn * Math.min(1, speedNow / PHYSICS.maxSpeed);
+        sx *= keep;
+        sy *= keep;
+        ax = along * fx + sx;
+        ay = along * fy + sy;
+      }
+      vx += ax * dt;
+      vy += ay * dt;
+      const drag = Math.exp(-PHYSICS.cruiseDrag * dt);
+      vx *= drag;
+      vy *= drag;
+    } else {
+      const drag = Math.exp(-PHYSICS.drag * dt);
+      vx *= drag;
+      vy *= drag;
+    }
+    const speed = Math.hypot(vx, vy);
+    if (speed > PHYSICS.maxSpeed) {
+      vx = (vx / speed) * PHYSICS.maxSpeed;
+      vy = (vy / speed) * PHYSICS.maxSpeed;
+    }
+    x = Math.min(BOAT.maxX, Math.max(BOAT.minX, x + vx * dt));
+    y = Math.min(BOAT.maxY, Math.max(BOAT.minY, y + vy * dt));
+  }
+  return [x, y, vx, vy];
+}
+
+/** Seconds until moving with `move` runs the boat into an obstacle, a patrol
+ * boat, or a no-wake zone at speed; Infinity when it never does. */
 function timeToHit(state, move, horizon) {
   const boat = state.boat;
   for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(BOAT.maxX, Math.max(BOAT.minX, boat.x + move.x * 430 * t));
-    const y = Math.min(BOAT.maxY, Math.max(BOAT.minY, boat.y + move.y * 430 * t));
+    const [x, y, vx, vy] = predictPosition(state, move, t);
+    const speed = Math.hypot(vx, vy);
     for (let index = 0; index < state.items.length; index += 1) {
       const item = state.items[index];
       if (!item.active || !isObstacle(item.kind)) continue;
       const iy = item.y + item.speed * t;
       if (iy + item.height > y && iy < y + boat.height && item.x < x + boat.width + MARGIN && item.x + item.width > x - MARGIN) return t;
+    }
+    for (let index = 0; index < state.patrols.length; index += 1) {
+      const patrol = state.patrols[index];
+      if (!patrol.active) continue;
+      const px = patrol.x + patrol.vx * t;
+      const py = patrol.y + patrol.vy * t;
+      if (py + patrol.height > y && py < y + boat.height && px < x + boat.width + MARGIN && px + patrol.width > x - MARGIN) return t;
+    }
+    // Speeding through a no-wake zone is a crime: the pilot brakes first.
+    if (speed > WANTED.noWakeSpeed) {
+      const cx = x + boat.width / 2;
+      const cy = y + boat.height / 2;
+      for (let index = 0; index < NO_WAKE.length; index += 1) {
+        const zone = NO_WAKE[index];
+        if (cx >= zone.x && cx <= zone.x + zone.w && cy >= zone.y && cy <= zone.y + zone.h) return t;
+      }
     }
   }
   return Infinity;
@@ -92,11 +158,28 @@ export function stageShot(name, world) {
   }
   const limit = name === 'play' ? PLAY_SECONDS : name === 'win' ? WIN_LIMIT_SECONDS : END_LIMIT_SECONDS;
   const horizon = name === 'end' ? HORIZON_END : name === 'win' ? HORIZON_WIN : HORIZON_PLAY;
+  // The play scene is the showcase: keep patrols out of the pre-roll so the
+  // boat is alive at 30 seconds, then stage the chase and a live job on top.
+  if (name === 'play') world.suppressPatrols(true);
   let won = false;
   for (let index = 0; index < limit / STEP; index += 1) {
+    // In the win scene the pilot takes every job offered: crate runs pay in
+    // cowries, and the pilot already chases crates like shells.
+    if (name === 'win' && world.state.mission.offered) world.acceptMission();
     const events = world.step(STEP, autopilot(world.state, horizon), false);
     if (events & EVENT_WIN) { won = true; break; }
     if (events & EVENT_OVER) break;
+  }
+  if (name === 'play' && !won && world.state.lives > 0) {
+    world.suppressPatrols(false);
+    world.stageChase();
+    world.stageMission();
+    for (let index = 0; index < 2 / STEP; index += 1) {
+      world.step(STEP, autopilot(world.state, horizon), false);
+      if (world.state.lives === 0) break;
+    }
+    // The boat must be visible in the frame, never caught mid-blink.
+    world.state.boat.invulnerable = 0;
   }
   if (won || world.state.won) return { screen: SCREEN_WIN, best: world.state.score };
   const over = world.state.lives === 0;

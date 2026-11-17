@@ -68,6 +68,8 @@ export function createAudio() {
     heart() { tone(660, 660, 0.12, 'sine'); tone(880, 880, 0.16, 'sine', 0.1); },
     splash() { splashNoise(0.35); tone(220, 70, 0.3, 'sawtooth'); },
     horn() { tone(196, 196, 0.35, 'sawtooth'); tone(294, 294, 0.35, 'sawtooth', 0.02); },
+    siren() { tone(740, 740, 0.22, 'square'); tone(988, 988, 0.22, 'square', 0.24); },
+    mission() { tone(523, 523, 0.12, 'triangle'); tone(659, 659, 0.12, 'triangle', 0.1); tone(784, 784, 0.2, 'triangle', 0.2); },
     click() { tone(700, 500, 0.06, 'square'); },
     win() {
       const notes = [523, 659, 784, 1046, 784, 1046, 1318];

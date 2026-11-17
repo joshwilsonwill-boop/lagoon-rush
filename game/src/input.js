@@ -5,6 +5,7 @@
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_MUTE = 4;
+export const ACTION_MISSION = 8;
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -24,6 +25,7 @@ export function createInput(canvas) {
     if (key === ' ' || key === 'Enter') actions |= ACTION_CONFIRM;
     else if (key === 'p' || key === 'P' || key === 'Escape') actions |= ACTION_PAUSE;
     else if (key === 'm' || key === 'M') actions |= ACTION_MUTE;
+    else if (key === 'e' || key === 'E') actions |= ACTION_MISSION;
   });
   window.addEventListener('keyup', (event) => keys.delete(keyOf(event)));
   window.addEventListener('blur', () => keys.clear());
